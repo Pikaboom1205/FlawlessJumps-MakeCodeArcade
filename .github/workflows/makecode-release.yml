@@ -1,0 +1,69 @@
+name: MakeCode Arcade Release
+
+on:
+  release:
+    types:
+      - created
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write  # Required for gh release upload
+
+    steps:
+      - uses: actions/checkout@v5
+      - name: install node.js 22
+        uses: actions/setup-node@v6
+        with:
+          node-version: 22
+
+      - name: install makecode
+        run: |
+          npm install -g pxt
+          pxt target arcade
+
+      - name: build js
+        run: |
+          pxt clean
+          pxt install
+          pxt build --cloud
+
+      - name: build D51
+        continue-on-error: true
+        run: |
+          pxt clean
+          pxt install --hw samd51
+          pxt build --hw samd51 --cloud
+          cp ./built/binary.uf2 binary-d51.uf2
+
+      - name: build F4
+        continue-on-error: true
+        run: |
+          pxt clean
+          pxt install --hw stm32f401
+          pxt build --hw stm32f401 --cloud
+          cp ./built/binary.uf2 binary-f4.uf2
+
+      - name: build P0
+        continue-on-error: true
+        run: |
+          pxt clean
+          pxt install --hw rpi
+          pxt build --hw rpi --cloud
+          cp ./built/binary.uf2 binary-p0.uf2
+
+      - name: bundle all
+        run: |
+          cat binary-*.uf2 > ./built/arcade.uf2
+
+      - name: Upload Release Assets
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          TAG_NAME=${GITHUB_REF#refs/tags/}
+          gh release upload $TAG_NAME \
+            built/arcade.uf2 \
+            binary-d51.uf2 \
+            binary-f4.uf2 \
+            binary-p0.uf2 \
+            --clobber
